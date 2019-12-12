@@ -1,0 +1,9 @@
+version: '3.7'
+services:
+  qlearning:
+    container_name: qlearning
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - './:/usr/src/app'
