@@ -4,6 +4,8 @@ import sys
 import gym
 from gym import wrappers, logger
 import matplotlib.pyplot as plt
+from collections import deque
+import random
 
 
 class RandomAgent(object):
@@ -14,6 +16,9 @@ class RandomAgent(object):
     def act(self, observation, reward, done):
         return self.action_space.sample()
 
+
+def sampling(buffer, batch_size):
+    return random.sample(list(buffer), batch_size)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=None)
@@ -39,6 +44,9 @@ if __name__ == '__main__':
     reward = 0
     done = False
     reward_evolution = []
+    d = deque(maxlen=100)
+
+
 
     for i in range(episode_count):
         interactions = 0
@@ -50,6 +58,7 @@ if __name__ == '__main__':
             sum_reward += reward
             # env.render()
             interactions += 1
+            d.append({"state": 1, "action": action, "next_state": 2, "reward": reward, "end_ep": 10})
             if done:
                 reward_evolution.append(sum_reward)
                 break;
@@ -62,3 +71,7 @@ if __name__ == '__main__':
 
     plt.plot(reward_evolution)
     plt.show()
+    print(d)
+    print(sampling(d, 4))
+
+
