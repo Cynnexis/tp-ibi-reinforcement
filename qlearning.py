@@ -54,11 +54,12 @@ if __name__ == '__main__':
         ob = env.reset()
         while True:
             action = agent.act(ob, reward, done)
+            last_state = env.state
             ob, reward, done, _ = env.step(action)
             sum_reward += reward
             # env.render()
             interactions += 1
-            d.append({"state": 1, "action": action, "next_state": 2, "reward": reward, "end_ep": 10})
+            d.append({"state": last_state, "action": action, "next_state": env.state, "reward": reward, "end_ep": done})
             if done:
                 reward_evolution.append(sum_reward)
                 break;
