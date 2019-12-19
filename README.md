@@ -111,5 +111,5 @@ Lien GitHub: https://github.com/Cynnexis/tp-ibi-reinforcement
 [python3]: https://www.python.org/download/releases/3.0/
 [pytorch]: https://pytorch.org/
 [pycharm]: https://www.jetbrains.com/pycharm/
-[venv]: virtualenv
+[venv]: https://virtualenv.pypa.io
 [docker]: https://www.docker.com/
