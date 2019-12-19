@@ -95,6 +95,9 @@ if __name__ == '__main__':
     env.close()
 
     plt.plot(reward_evolution)
+    plt.title("Évolution des récompenses obtenues par l'agent au cours des itérations")
+    plt.xlabel("Itérations")
+    plt.ylabel("Récompense")
     plt.show()
     print(buffer)
     print(sampling(buffer, 4))
