@@ -22,12 +22,15 @@ class RandomAgent(object):
 
 class NeuralAgent(object):
 
-    def __init__(self, action_space, t, buffer):
+    def __init__(self, action_space, t, buffer, gamma):
         self.action_space = action_space
         self.t = t
+        self.gamma = gamma
 
     def act(self, observation, reward, done):
         obs = [float(i) for i in observation]
+        self.action_space = obs
+        print(torch.tensor(obs))
         Qaction = neural_network(torch.tensor(obs)).tolist()
         proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
         rand = random.random()
@@ -37,8 +40,19 @@ class NeuralAgent(object):
             return 1
 
     def learn(self, buffer):
-        batch = sampling(buffer, 10)
-        
+        if len(buffer) > 10:
+            batch = sampling(buffer, 10)
+            for ex in batch:
+                if ex["end_ep"]:
+                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - self.gamma * (
+                            ex["reward"]))**2
+                else:
+                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - self.gamma * (
+                                ex["reward"] + max(neural_network(torch.tensor(ex["next_state"], dtype=torch.float)).tolist()))) ** 2
+                t = torch.tensor(j, requires_grad=True)
+                optimizer.zero_grad()
+                t.backward()
+                optimizer.step()
 
 
 def sampling(buffer, batch_size):
@@ -63,14 +77,15 @@ if __name__ == '__main__':
     env = wrappers.Monitor(env, directory=outdir, force=True)
     env.seed(0)
 
-    episode_count = 10
+    episode_count = 50
     reward = 0
     done = False
     reward_evolution = []
     buffer = deque(maxlen=100)
-    agent = NeuralAgent(env.action_space, 0.1, buffer)
+    agent = NeuralAgent(env.action_space, 0.1, buffer, 0.1)
 
     neural_network = nn.Linear(4, 2)
+    optimizer = torch.optim.SGD(neural_network.parameters(), lr=0.01, momentum=0.9)
 
     for i in range(episode_count):
         interactions = 0
@@ -84,6 +99,7 @@ if __name__ == '__main__':
             # env.render()
             interactions += 1
             buffer.append({"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
+            agent.learn(buffer)
             if done:
                 reward_evolution.append(sum_reward)
                 break
