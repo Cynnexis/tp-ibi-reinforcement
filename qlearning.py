@@ -1,5 +1,6 @@
 import argparse
 import sys
+from typing import Any, Callable
 
 import gym
 from gym import wrappers, logger
@@ -18,6 +19,23 @@ class RandomAgent(object):
 
     def act(self, observation, reward, done):
         return self.action_space.sample()
+
+
+class ApproxQValue(nn.Module):
+    """
+    Neural network that predicts the q-values for all actions for a given state.
+    """
+    def __init__(self, input_size, output_size, activation: Callable[[Any], Any] = nn.functional.relu):
+        super(ApproxQValue, self).__init__()
+        hidden_size = int(np.ceil((input_size + output_size) / 2))
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.activation = activation
+    
+    def forward(self, x):
+        x = self.activation(self.fc1(x))
+        x = self.activation(self.fc2(x))
+        return x
 
 
 class NeuralAgent(object):
@@ -70,7 +88,7 @@ if __name__ == '__main__':
     buffer = deque(maxlen=100)
     agent = NeuralAgent(env.action_space, 0.1, buffer)
 
-    neural_network = nn.Linear(4, 2)
+    neural_network = ApproxQValue(4, 2)
 
     for i in range(episode_count):
         interactions = 0
