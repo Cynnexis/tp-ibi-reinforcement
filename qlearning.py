@@ -6,6 +6,9 @@ from gym import wrappers, logger
 import matplotlib.pyplot as plt
 from collections import deque
 import random
+import torch.nn as nn
+import torch
+import numpy as np
 
 
 class RandomAgent(object):
@@ -15,6 +18,27 @@ class RandomAgent(object):
 
     def act(self, observation, reward, done):
         return self.action_space.sample()
+
+
+class NeuralAgent(object):
+
+    def __init__(self, action_space, t, buffer):
+        self.action_space = action_space
+        self.t = t
+
+    def act(self, observation, reward, done):
+        obs = [float(i) for i in observation]
+        Qaction = neural_network(torch.tensor(obs)).tolist()
+        proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
+        rand = random.random()
+        if rand < proba_action1:
+            return 0
+        else:
+            return 1
+
+    def learn(self, buffer):
+        batch = sampling(buffer, 10)
+        
 
 
 def sampling(buffer, batch_size):
@@ -38,15 +62,15 @@ if __name__ == '__main__':
     outdir = '/tmp/random-agent-results'
     env = wrappers.Monitor(env, directory=outdir, force=True)
     env.seed(0)
-    agent = RandomAgent(env.action_space)
 
     episode_count = 10
     reward = 0
     done = False
     reward_evolution = []
-    d = deque(maxlen=100)
+    buffer = deque(maxlen=100)
+    agent = NeuralAgent(env.action_space, 0.1, buffer)
 
-
+    neural_network = nn.Linear(4, 2)
 
     for i in range(episode_count):
         interactions = 0
@@ -54,15 +78,15 @@ if __name__ == '__main__':
         ob = env.reset()
         while True:
             action = agent.act(ob, reward, done)
-            last_state = env.state
+            last_state = ob
             ob, reward, done, _ = env.step(action)
             sum_reward += reward
             # env.render()
             interactions += 1
-            d.append({"state": last_state, "action": action, "next_state": env.state, "reward": reward, "end_ep": done})
+            buffer.append({"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
             if done:
                 reward_evolution.append(sum_reward)
-                break;
+                break
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
@@ -72,7 +96,7 @@ if __name__ == '__main__':
 
     plt.plot(reward_evolution)
     plt.show()
-    print(d)
-    print(sampling(d, 4))
+    print(buffer)
+    print(sampling(buffer, 4))
 
 
