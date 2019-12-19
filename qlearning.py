@@ -1,5 +1,6 @@
 import argparse
 import sys
+from typing import Any, Callable
 
 import gym
 from gym import wrappers, logger
@@ -18,6 +19,23 @@ class RandomAgent(object):
 
     def act(self, observation, reward, done):
         return self.action_space.sample()
+
+
+class ApproxQValue(nn.Module):
+    """
+    Neural network that predicts the q-values for all actions for a given state.
+    """
+    def __init__(self, input_size, output_size, activation: Callable[[Any], Any] = nn.functional.relu):
+        super(ApproxQValue, self).__init__()
+        hidden_size = int(np.ceil((input_size + output_size) / 2))
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.activation = activation
+    
+    def forward(self, x):
+        x = self.activation(self.fc1(x))
+        x = self.activation(self.fc2(x))
+        return x
 
 
 class NeuralAgent(object):
@@ -44,11 +62,11 @@ class NeuralAgent(object):
             batch = sampling(buffer, 10)
             for ex in batch:
                 if ex["end_ep"]:
-                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - self.gamma * (
+                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - (
                             ex["reward"]))**2
                 else:
-                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - self.gamma * (
-                                ex["reward"] + max(neural_network(torch.tensor(ex["next_state"], dtype=torch.float)).tolist()))) ** 2
+                    j = (neural_network(torch.tensor(ex["state"], dtype=torch.float)).tolist()[ex["action"]] - (
+                                ex["reward"] + self.gamma * max(neural_network(torch.tensor(ex["next_state"], dtype=torch.float)).tolist()))) ** 2
                 t = torch.tensor(j, requires_grad=True)
                 optimizer.zero_grad()
                 t.backward()
@@ -84,7 +102,7 @@ if __name__ == '__main__':
     buffer = deque(maxlen=100)
     agent = NeuralAgent(env.action_space, 0.1, buffer, 0.1)
 
-    neural_network = nn.Linear(4, 2)
+    neural_network = ApproxQValue(4, 2)
     optimizer = torch.optim.SGD(neural_network.parameters(), lr=0.01, momentum=0.9)
 
     for i in range(episode_count):
