@@ -11,6 +11,8 @@ import torch.nn as nn
 import torch
 import numpy as np
 
+from stopwatch import Stopwatch
+
 
 class RandomAgent(object):
     """The world's simplest agent!"""
@@ -117,11 +119,11 @@ if __name__ == '__main__':
     optim.zero_grad()
     print(neural_network.weight.grad)
     k = 0
+    learning_timer = Stopwatch()
     for i in range(episode_count):
         interactions = 0
         sum_reward = 0
         ob = env.reset()
-        print(i)
 
         while True:
             action = agent.act(ob, reward, done)
@@ -144,10 +146,16 @@ if __name__ == '__main__':
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
+        
+        if i % 100 == 0 and i != 0:
+            print("Train epoch {}/{} sum reward={}".format(i, episode_count, sum_reward))
 
+    learning_timer.stop()
+    
     # Close the env and write monitor result info to disk
     env.close()
-
+    
+    print("Learning time: {}s".format(learning_timer.elapsed()))
     plt.plot(reward_evolution)
     plt.title("Évolution des récompenses obtenues par l'agent au cours des itérations")
     plt.xlabel("Itérations")
