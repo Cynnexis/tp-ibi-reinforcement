@@ -14,6 +14,11 @@ import numpy as np
 from stopwatch import Stopwatch
 
 
+MIN_EPOCH = 10000
+LEARNING_RATE = 0.01
+MOMENTUM = 0.9
+
+
 class RandomAgent(object):
     """The world's simplest agent!"""
     def __init__(self, action_space):
@@ -103,8 +108,7 @@ if __name__ == '__main__':
     outdir = '/tmp/random-agent-results'
     env = wrappers.Monitor(env, directory=outdir, force=True)
     env.seed(0)
-
-    episode_count = 10000
+    
     reward = 0
     done = False
     reward_evolution = []
@@ -115,12 +119,12 @@ if __name__ == '__main__':
     second_neural_network = type(neural_network)(4, 2)
     second_neural_network.load_state_dict(neural_network.state_dict())
     print(list(neural_network.parameters()))
-    optim = torch.optim.SGD(neural_network.parameters(), lr=0.01, momentum=0)
+    optim = torch.optim.SGD(neural_network.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
     optim.zero_grad()
     print(neural_network.weight.grad)
     k = 0
     learning_timer = Stopwatch()
-    for i in range(episode_count):
+    for i in range(MIN_EPOCH):
         interactions = 0
         sum_reward = 0
         ob = env.reset()
@@ -147,15 +151,15 @@ if __name__ == '__main__':
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
         
-        if i % 100 == 0 and i != 0:
-            print("Train epoch {}/{} sum reward={}".format(i, episode_count, sum_reward))
+        if i % 100 == 0 and i != 0 or i == MIN_EPOCH:
+            print("Train epoch {}/{} sum reward={}".format(i, MIN_EPOCH, sum_reward))
 
     learning_timer.stop()
     
     # Close the env and write monitor result info to disk
     env.close()
     
-    print("Learning time: {}s".format(learning_timer.elapsed()))
+    print("Learning time: {:.2f}s".format(learning_timer.elapsed()))
     plt.plot(reward_evolution)
     plt.title("Évolution des récompenses obtenues par l'agent au cours des itérations")
     plt.xlabel("Itérations")
