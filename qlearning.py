@@ -1,4 +1,5 @@
 import argparse
+import copy
 import sys
 from typing import Any, Callable
 
@@ -10,11 +11,12 @@ import random
 import torch.nn as nn
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 from stopwatch import Stopwatch
 
 
-MIN_EPOCH = 10000
+MIN_EPOCH = 5000
 LEARNING_RATE = 0.01
 MOMENTUM = 0.9
 
@@ -57,34 +59,57 @@ class NeuralAgent(object):
         obs = [float(i) for i in observation]
         self.action_space = obs
         # print(torch.tensor(obs))
-        Qaction = neural_network(torch.tensor(obs)).tolist()
-        proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
+        Qaction = (neural_network(torch.tensor(obs)))
+        # proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
+        # rand = random.random()
+        # if rand < proba_action1:
+        #     return 0
+        # else:
+        #     return 1
+        _, action = torch.max(Qaction, 0)
+        action = action.item()
+        # print(action)
+        # print(action)
         rand = random.random()
-        if rand < proba_action1:
-            return 0
+        if rand < self.t:
+            rand = random.random()
+            if rand < 0.5:
+                return 0
+            else:
+                return 1
         else:
-            return 1
+            return action
 
     def learn(self, buffer):
+        global target_neural_network
         if len(buffer) > 100:
-            batch = sampling(buffer, 20)
+            batch = sampling(buffer, 42)
             self.nb_learn += 1
             for ex in batch:
-                if ex["end_ep"]:
-                    j = neural_network(torch.tensor(ex["state"], dtype=torch.float))[ex["action"]] - (
-                            ex["reward"]) ** 2
-                else:
-                    j = neural_network(torch.tensor(ex["state"], dtype=torch.float))[ex["action"]] - (
-                                ex["reward"] + self.gamma * max(second_neural_network(torch.tensor(ex["next_state"], dtype=torch.float)))) ** 2
-                #t = torch.tensor(j, requires_grad=True)
                 optim.zero_grad()
+                qvalue = neural_network(torch.tensor(ex["state"], dtype=torch.float))
+                if ex["end_ep"]:
+                    j = (qvalue[ex["action"]].item() - (
+                            ex["reward"])) ** 2
+                else:
+                    j = (qvalue[ex["action"]].item() - (
+                            ex["reward"] + self.gamma * target_neural_network(torch.tensor(ex["next_state"], dtype=torch.float)).max().item())) ** 2
+                # print(j)
+                a = qvalue.clone()
+                a[ex["action"]] = j
+                #t = torch.tensor(j, requires_grad=True)
                 #print(neural_network.weight.grad)
-                j.backward()
+                loss = criterion(qvalue, a)
+                loss.backward()
                 # print(neural_network.weight.grad)
                 optim.step()
-            if self.nb_learn > 100:
+            if self.nb_learn > 10:
                 # print(neural_network.weight)
-                second_neural_network.load_state_dict(neural_network.state_dict())
+                # second_neural_network.load_state_dict(neural_network.state_dict())
+                target_neural_network = copy.deepcopy(neural_network)
+                self.nb_learn = 0
+            self.t = max(self.t * 0.99, 0.001)
+            # print(self.t)
 
 
 def sampling(buffer, batch_size):
@@ -113,16 +138,18 @@ if __name__ == '__main__':
     done = False
     reward_evolution = []
     buffer = deque(maxlen=10000)
-    agent = NeuralAgent(env.action_space, 0.3, buffer, 0.5)
+    agent = NeuralAgent(env.action_space, 1.0, buffer, 0.99)
 
-    neural_network = nn.Linear(4, 2)
-    second_neural_network = type(neural_network)(4, 2)
-    second_neural_network.load_state_dict(neural_network.state_dict())
+    # neural_network = nn.Linear(4, 2)
+    # second_neural_network = type(neural_network)(4, 2)
+    # second_neural_network.load_state_dict(neural_network.state_dict())
+    # print(list(neural_network.parameters()))
+    neural_network = ApproxQValue(activation=F.relu)
+    target_neural_network = copy.deepcopy(neural_network)
     print(list(neural_network.parameters()))
+    criterion = nn.SmoothL1Loss()
     optim = torch.optim.SGD(neural_network.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
     optim.zero_grad()
-    print(neural_network.weight.grad)
-    k = 0
     learning_timer = Stopwatch()
     for i in range(MIN_EPOCH):
         interactions = 0
@@ -131,28 +158,30 @@ if __name__ == '__main__':
 
         while True:
             action = agent.act(ob, reward, done)
+            # print(action)
             last_state = ob
             ob, reward, done, _ = env.step(action)
             sum_reward += reward
             # env.render()
             interactions += 1
-            if k == 50:
-                agent.learn(buffer)
-                k = 0
-            k += 1
 
             if done:
                 buffer.append(
-                    {"state": last_state, "action": action, "next_state": ob, "reward": sum_reward, "end_ep": done})
+                    {"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
                 reward_evolution.append(sum_reward)
                 break
             buffer.append({"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
+
+            # if interactions % 50 == 0:
+            #    agent.learn(buffer)
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
         
         if i % 100 == 0 and i != 0 or i == MIN_EPOCH:
             print("Train epoch {}/{} sum reward={}".format(i, MIN_EPOCH, sum_reward))
+            print(agent.t)
+        agent.learn(buffer)
 
     learning_timer.stop()
     
