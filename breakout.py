@@ -14,10 +14,12 @@ from gym import wrappers, logger
 
 from stopwatch import Stopwatch
 
-MIN_EPOCH = 5000
-LEARNING_RATE = 0.01
-MOMENTUM = 0.9
+MIN_EPOCH = 200
+LEARNING_RATE = 0.00025
+MOMENTUM = 0.95
+GAMMA = 0.99
 ALPHA = 0.001
+EPSILON_GREEDY_FACTOR = 0.99
 
 
 class ConvNet(nn.Module):
@@ -29,16 +31,15 @@ class ConvNet(nn.Module):
         super(ConvNet, self).__init__()
         self.conv1 = nn.Conv2d(4, 32, 8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
-        self.fc1 = nn.Linear(2592 * 2, 256)
-        self.fc2 = nn.Linear(256, 4)
+        self.conv3 = nn.Conv2d(64, 64, 3, stride=1)
+        self.fc1 = nn.Linear(64 * 7 * 7, 4)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
         x = x.reshape(-1)
-        # print(x.shape)
         x = self.fc1(x)
-        x = self.fc2(x)
         return x
 
 
@@ -53,16 +54,16 @@ class RandomAgent(object):
 
 
 class ConvAgent(object):
-    def __init__(self, action_space, t, buffer, gamma):
+    def __init__(self, action_space, epsilon_greedy, buffer, gamma):
         self.action_space = action_space
-        self.t = t
+        self.epsilon_greedy = epsilon_greedy
         self.gamma = gamma
         self.nb_learn = 0
 
     def act(self, observation, reward, done):
         self.action_space = observation
         # print(torch.tensor(obs))
-        # proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
+        # proba_action1 = np.exp(Qaction[0]/self.epsilon_greedy)/sum(np.exp(np.array(Qaction)/self.epsilon_greedy))
         # rand = random.random()
         # if rand < proba_action1:
         #     return 0
@@ -71,7 +72,7 @@ class ConvAgent(object):
         # print(action)
         # print(action)
         rand = random.random()
-        if rand < self.t:
+        if rand < self.epsilon_greedy:
             rand = random.random()
             if rand < 0.25:
                 return 0
@@ -107,7 +108,7 @@ class ConvAgent(object):
                 # print(j)
                 a = qvalue.clone()
                 a[ex["action"]] = j
-                #t = torch.tensor(j, requires_grad=True)
+                #epsilon_greedy = torch.tensor(j, requires_grad=True)
                 #print(neural_network.weight.grad)
                 loss = criterion(qvalue, a)
                 loss.backward()
@@ -119,8 +120,7 @@ class ConvAgent(object):
                 # second_neural_network.load_state_dict(neural_network.state_dict())
                 target_neural_network = copy.deepcopy(neural_network)
                 self.nb_learn = 0
-            self.t = max(self.t * 0.99, 0.001)
-            print(self.t)
+            self.epsilon_greedy = max(self.epsilon_greedy * EPSILON_GREEDY_FACTOR, 0.001)
 
 
 def sampling(buffer, batch_size):
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     # You can set the level to logger.DEBUG or logger.WARN if you
     # want to change the amount of output.
-    logger.set_level(logger.INFO)
+    logger.set_level(logger.WARN)
 
     env = gym.make(args.env_id)
     env.spec.id += " NoFrameskip"
@@ -159,17 +159,16 @@ if __name__ == '__main__':
     buffer = deque(maxlen=10000)
     done = False
     reward_evolution = []
+    epsilon_greedy_evolution = []
     sum_reward = 0
     interactions = 0
-    agent = ConvAgent(env.action_space, 1, buffer, 0.9)
+    agent = ConvAgent(action_space=env.action_space, epsilon_greedy=1, buffer=buffer, gamma=GAMMA)
 
     learning_timer = Stopwatch()
-    # agent = RandomAgent(env.action_space)
 
     for i in range(MIN_EPOCH):
         sum_reward = 0
         interactions = 0
-        print(i)
         ob = env.reset()
         ob = [[k for k in ob]]
         while True:
@@ -191,13 +190,10 @@ if __name__ == '__main__':
                 reward_evolution.append(sum_reward)
                 break
             buffer.append({"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
-            # Note there's no env.render() here. But the environment still can open window and
-            # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
-            # Video is not recorded every episode, see capped_cubic_video_schedule for details.
-        if i % 100 == 0 and i != 0 or i == MIN_EPOCH:
-            print("Train epoch {}/{} sum reward={}".format(i, MIN_EPOCH, sum_reward))
-            print(agent.t)
+
         agent.learn(buffer)
+        epsilon_greedy_evolution.append(agent.epsilon_greedy)
+        print("Train epoch {}/{} sum reward={} epsilon_greedy={:.4f}".format(i, MIN_EPOCH, sum_reward, agent.epsilon_greedy))
 
     learning_timer.stop()
     # Close the env and write monitor result info to disk
@@ -208,6 +204,11 @@ if __name__ == '__main__':
     plt.title("Évolution des récompenses obtenues par l'agent au cours des itérations")
     plt.xlabel("Itérations")
     plt.ylabel("Récompense")
+    plt.show()
+    plt.plot(epsilon_greedy_evolution)
+    plt.title("Évolution de epsilon greedy au cours des itérations")
+    plt.xlabel("Itérations")
+    plt.ylabel("Epsilon greedy")
     plt.show()
     print(buffer)
     print(sampling(buffer, 4))
