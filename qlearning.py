@@ -60,12 +60,6 @@ class NeuralAgent(object):
         self.action_space = obs
         # print(torch.tensor(obs))
         Qaction = (neural_network(torch.tensor(obs)))
-        # proba_action1 = np.exp(Qaction[0]/self.t)/sum(np.exp(np.array(Qaction)/self.t))
-        # rand = random.random()
-        # if rand < proba_action1:
-        #     return 0
-        # else:
-        #     return 1
         _, action = torch.max(Qaction, 0)
         action = action.item()
         # print(action)
@@ -97,19 +91,13 @@ class NeuralAgent(object):
                 # print(j)
                 a = qvalue.clone()
                 a[ex["action"]] = j
-                #t = torch.tensor(j, requires_grad=True)
-                #print(neural_network.weight.grad)
                 loss = criterion(qvalue, a)
                 loss.backward()
-                # print(neural_network.weight.grad)
                 optim.step()
             if self.nb_learn > 10:
-                # print(neural_network.weight)
-                # second_neural_network.load_state_dict(neural_network.state_dict())
                 target_neural_network = copy.deepcopy(neural_network)
                 self.nb_learn = 0
             self.t = max(self.t * 0.99, 0.001)
-            # print(self.t)
 
 
 def sampling(buffer, batch_size):
@@ -140,10 +128,6 @@ if __name__ == '__main__':
     buffer = deque(maxlen=10000)
     agent = NeuralAgent(env.action_space, 1.0, buffer, 0.99)
 
-    # neural_network = nn.Linear(4, 2)
-    # second_neural_network = type(neural_network)(4, 2)
-    # second_neural_network.load_state_dict(neural_network.state_dict())
-    # print(list(neural_network.parameters()))
     neural_network = ApproxQValue(activation=F.relu)
     target_neural_network = copy.deepcopy(neural_network)
     print(list(neural_network.parameters()))
@@ -172,11 +156,6 @@ if __name__ == '__main__':
                 break
             buffer.append({"state": last_state, "action": action, "next_state": ob, "reward": reward, "end_ep": done})
 
-            # if interactions % 50 == 0:
-            #    agent.learn(buffer)
-            # Note there's no env.render() here. But the environment still can open window and
-            # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
-            # Video is not recorded every episode, see capped_cubic_video_schedule for details.
         
         if i % 100 == 0 and i != 0 or i == MIN_EPOCH:
             print("Train epoch {}/{} sum reward={}".format(i, MIN_EPOCH, sum_reward))
