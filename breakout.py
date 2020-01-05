@@ -1,16 +1,14 @@
 import argparse
 import copy
-import sys
 from collections import deque
 import random
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from torchvision import transforms
 
 import gym
-from gym import wrappers, logger
+from gym import wrappers
 
 from stopwatch import Stopwatch
 
@@ -62,15 +60,6 @@ class ConvAgent(object):
 
     def act(self, observation, reward, done):
         self.action_space = observation
-        # print(torch.tensor(obs))
-        # proba_action1 = np.exp(Qaction[0]/self.epsilon_greedy)/sum(np.exp(np.array(Qaction)/self.epsilon_greedy))
-        # rand = random.random()
-        # if rand < proba_action1:
-        #     return 0
-        # else:
-        #     return 1
-        # print(action)
-        # print(action)
         rand = random.random()
         if rand < self.epsilon_greedy:
             rand = random.random()
@@ -105,19 +94,12 @@ class ConvAgent(object):
                     tens2 = torch.tensor(ex["next_state"], dtype=torch.float)/255
                     j = (qvalue[ex["action"]].item() - (
                             ex["reward"] + self.gamma * target_neural_network(tens2).max().item())) ** 2
-                # print(j)
                 a = qvalue.clone()
                 a[ex["action"]] = j
-                #epsilon_greedy = torch.tensor(j, requires_grad=True)
-                #print(neural_network.weight.grad)
                 loss = criterion(qvalue, a)
                 loss.backward()
-                # print(neural_network.weight.grad)
                 optim.step()
-                # target_neural_network.fc1.weight = target_neural_network.fc1.weight * (1 - ALPHA) + ALPHA * neural_network.fc1.weight
             if self.nb_learn > 30:
-                # print(neural_network.weight)
-                # second_neural_network.load_state_dict(neural_network.state_dict())
                 target_neural_network = copy.deepcopy(neural_network)
                 self.nb_learn = 0
             self.epsilon_greedy = max(self.epsilon_greedy * EPSILON_GREEDY_FACTOR, 0.001)
@@ -131,10 +113,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('env_id', nargs='?', default='Breakout-v0', help='Select the environment to run')
     args = parser.parse_args()
-
-    # You can set the level to logger.DEBUG or logger.WARN if you
-    # want to change the amount of output.
-    logger.set_level(logger.WARN)
 
     env = gym.make(args.env_id)
     env.spec.id += " NoFrameskip"
