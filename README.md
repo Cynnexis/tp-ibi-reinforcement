@@ -22,9 +22,13 @@ cd tp-ibi-reinforcement
 
 ### Prérequis
 
-Le scripts utilisé des notations de Python 3. Par la suite, nous estimerons que la commande `python` lancera Python version 3.
+Les scripts utilisent des notations de Python 3. Par la suite, nous estimerons que la commande `python` lancera Python version 3.
 
 Le projet peut s'exécuter en utilisant pip, venv ou conda (voir partie suivante) ou avec Docker (voir partie **Installation (docker)**)
+
+> ⚠️ Recommandation:
+>
+> Il est recommandé de suivre l'installation via pip, venv ou conda, car les scripts Python du projet utilise `matplotlib`, une librairie non supportée sous Docker sans GUI.
 
 ### Installation (pip/venv/conda🐍)
 
